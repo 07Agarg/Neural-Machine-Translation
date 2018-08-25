@@ -11,9 +11,11 @@ from tensorflow.python.layers import core as layers_core
 import config
 
 class Model():
-    def __init__(self):
-        self.inputs = tf.placeholder(shape=[self.config.batch_size, self.config.num_steps], dtype=tf.int32)
-        self.labels = tf.placeholder(shape=[self.config.batch_size, self.config.num_steps], dtype=tf.int32)
+    def __init__(self, config):
+        self.config = config
+        self.src_inputs = tf.placeholder(shape=[self.config.src_seq_len, self.config.batch_size], dtype=tf.int32)
+        self.tgt_inputs = tf.placeholder(shape=[self.config.tgt_seq_len, self.config.batch_size], dtype=tf.int32)
+        self.tgt_labels = tf.placeholder(shape=[self.config.tgt_seq_len, self.config.batch_size], dtype=tf.int32)
         self.loss = None
         self.logits = None
         self.encoder_initial_state = None
@@ -23,8 +25,8 @@ class Model():
 
 
     def build_encoder(self):
-        embedding_layer = neural_network.Embedding_Layer([self.config.vocab_size, self.config.hidden_size])
-        encoder_emb_inputs = embedding_layer.lookup(self.inputs)
+        embedding_layer = neural_network.Embedding_Layer([self.config.vocab_size, self.config.num_units])
+        encoder_emb_inputs = embedding_layer.lookup(self.src_inputs)
         
         rnn_graph = neural_network.RNN_Graph([self.config.hidden_size, self.config.num_layers], self.training, self.config.keep_prob, self.config.batch_size)
         self.encoder_initial_state = rnn_graph.initial_state
@@ -32,20 +34,33 @@ class Model():
         self.encoder_final_state = state
 
     def build_decoder(self):
-        embedding_layer = neural_network.Embedding_Layer([self.config.vocab_size, self.config.hidden_size])
-        decoder_emb_inputs = embedding_layer.lookup(self.inputs)
+        embedding_layer = neural_network.Embedding_Layer([self.config.vocab_size, self.config.num_units])
+        decoder_emb_inputs = embedding_layer.lookup(self.tgt_inputs)
         
         rnn_graph = neural_network.RNN_Graph([self.config.hidden_size, self.config.num_layers], self.training, self.config.keep_prob, self.config.batch_size)
         self.decoder_initial_state = self.encoder_final_state
-        output, state = rnn_graph.decoder_feed_forward(inputs, self.config, self.decoder_final_state)
-        self.decoder_final_state = state
         
         helper = tf.contrib.seq2seq.TrainingHelper(decoder_emb_inputs, [config.tgt_max_sent_length-1 for _ in range(config.batch_size)], time_major = True)
-        self.output_layer = layers_core.Dense(config.tgt_vocab_size, use_bias=False, name="output_projection")
-        decoder = tf.contrib.seq2seq.BasicDecoder(rnn_graph.model_cell, helper, self.decoder_initial_state,output_layer = self.output_layer)
-        outputs, _ = tf.contrib.seq2seq.dynamic_decode(decoder, output_time_major=True, swap_memory=True)
+        projection_layer = layers_core.Dense(config.tgt_vocab_size, use_bias=False, name="output_projection")
+        decoder = tf.contrib.seq2seq.BasicDecoder(rnn_graph.model_cell, helper, self.decoder_initial_state,output_layer = projection_layer)
+        outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder, output_time_major=True, swap_memory=True)
         self.logits = outputs.rnn_output
+        
 
     def loss(self):
-        crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels, logits=self.logits)
-        self.loss = (tf.reduce_sum(crossent * target_weights) /config.batch_size)
+        crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.tgt_labels, logits=self.logits)
+        self.loss = (tf.reduce_sum(crossent * target_weights) /(config.batch_size * self.config.num_units))
+        
+    def train(self):
+        params = tf.trainable_variables()
+        gradients = tf.gradients(self.loss, params)
+        grads, _ = tf.clip_by_global_norm(gradients, self.config.max_grad_norm)
+        optimizer = tf.train.AdamOptimizer(0.0001)
+        update_step = optimizer.apply_gradients(zip(grads, params))
+        saver = tf.train.Saver()
+        with tf.Session() as session:
+            session.run(tf.global_variables_initializer())
+            state = session.run(self.encoder_initial_state)
+            for epoch in range(self.config.num_train_steps):
+                avg_cost = 0
+                

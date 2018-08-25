@@ -29,8 +29,8 @@ class RNN_Graph():
         self.model_cell = tf.contrib.rnn.MultiRNNCell([make_cell() for _ in range(shape[1])], state_is_tuple=True)
         self.encoder_initial_state = self.model_cell.zero_state(batch_size, dtype=tf.float32)
         
-    def encoder_feed_forward(self, input_data):
-        output, state = tf.nn.dynamic_rnn(self.model_cell, input_data, initial_state = self.encoder_initial_state)
+    def encoder_feed_forward(self, input_data, config):
+        output, state = tf.nn.dynamic_rnn(self.model_cell, input_data, initial_state = self.encoder_initial_state, sequence_length = source_seq_lengths, time_major=True)
         return output, state
     
         

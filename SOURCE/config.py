@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+    # -*- coding: utf-8 -*-
 """
 Created on Mon Aug 13 05:29:16 2018
 
@@ -16,7 +16,7 @@ VOCAB_DIR = os.path.join(ROOT_DIR, 'VOCAB')
 
 # DATA FILES
 TRAIN_EN_VI = os.path.join(DATA_DIR, "train-en-vi")
-VALIDATION_EN_VI = os.path.join(DATA_DIR,  "dev-2012-en-vi")
+VALIDATION_EN_VI = os.path.join(DATA_DIR, "dev-2012-en-vi")
 TEST_EN_VI = os.path.join(DATA_DIR, "test-2013-en-vi")
 
 train_en = "train.en"
@@ -33,11 +33,15 @@ vocab_vi = "vocab.vi"
 # RANDOM NUMBER GENERATOR INFORMATION
 SEED = 128
 
-num_units = 32
+num_units = 128
 num_layers = 2
 num_train_steps = 12000
-src_max_len = 50
-tgt_max_len = 50
-batch_size = 128
+src_max_len = 51
+tgt_max_len = 51
+src_seq_len = 50
+tgt_seq_len = 50
+num_sent = 100000
+batch_size = 16
 dropout = 0.2
-
+keep_prob = 0.8
+ma_grad_norm = 5
